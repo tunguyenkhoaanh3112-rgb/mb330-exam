@@ -22,8 +22,17 @@ button:disabled{opacity:.5;cursor:not-allowed}
 main{flex:1;max-width:1280px;width:100%;margin:0 auto;padding:16px}
 .panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .hidden{display:none!important}.muted{color:var(--muted);font-size:13px}
-label.f{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600}
+span.f,label.f{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600}
 select,input[type=number]{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:#fff;font:inherit}
+.ms{position:relative}
+.ms-btn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px;border:1px solid var(--border);border-radius:8px;background:#fff;text-align:left;min-height:40px}
+.ms-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-panel{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:40;max-height:340px;overflow-y:auto;padding:6px}
+.ms.open .ms-panel{display:block}
+.ms-panel label{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:6px;cursor:pointer;font-size:14px;min-height:40px}
+.ms-panel label:hover{background:#f5f5f5}.ms-panel input{width:18px;height:18px;flex:none}
+.ms-tools{display:flex;gap:6px;padding:4px 4px 8px;border-bottom:1px solid var(--border);margin-bottom:4px;position:sticky;top:-6px;background:#fff}
+.ms-tools button{padding:5px 10px;min-height:32px;font-size:13px}
 .row{display:flex;gap:14px;flex-wrap:wrap}.row>div{flex:1;min-width:180px}
 .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
 .metric{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px}
@@ -137,8 +146,8 @@ th,td{padding:6px;font-size:13px}.metric b{font-size:20px}
       <div><label class="f" for="sMode">Chế độ</label><select id="sMode">
         <option value="exam">Thi thử — có đồng hồ, xem đáp án khi cần</option>
         <option value="practice">Luyện tập — không giới hạn thời gian</option></select></div>
-      <div><label class="f" for="sDomain">Domain</label><select id="sDomain"></select></div>
-      <div><label class="f" for="sCase">Case Study / Topic</label><select id="sCase"></select></div>
+      <div><span class="f">Domain</span><div class="ms" id="sDomain"></div></div>
+      <div><span class="f">Case Study / Topic</span><div class="ms" id="sCase"></div></div>
     </div>
     <div class="row">
       <div><label class="f" for="sKind">Loại câu hỏi</label><select id="sKind">
@@ -194,19 +203,29 @@ function screenTo(id){["setup","shell","result"].forEach(function(x){document.ge
 /* ---------- SETUP ---------- */
 var DOMAINS=Array.from(new Set(BANK.map(function(q){return q.domain;}))).sort();
 var TOPICS=Array.from(new Set(BANK.map(function(q){return q.topic;}))).sort(function(a,b){if(a==="Misc. Questions")return 1;if(b==="Misc. Questions")return -1;return a.localeCompare(b);});
+var MS={};
+function buildMulti(id,allLabel,arr,count){MS[id]={all:allLabel,arr:arr,sel:[]};var el=document.getElementById(id);
+  el.innerHTML='<button type="button" class="ms-btn" aria-haspopup="true" onclick="toggleMs(\''+id+'\')"><span></span><span aria-hidden="true">▾</span></button><div class="ms-panel"><div class="ms-tools"><button type="button" class="secondary" onclick="msAll(\''+id+'\',true)">Chọn tất cả</button><button type="button" class="secondary" onclick="msAll(\''+id+'\',false)">Bỏ chọn</button><button type="button" class="primary" style="margin-left:auto" onclick="toggleMs(\''+id+'\')">Xong</button></div>'+
+    arr.map(function(x,i){return '<label><input type="checkbox" value="'+i+'" onchange="msChange(\''+id+'\')"> <span>'+esc(x)+' ('+count(x)+')</span></label>';}).join("")+'</div>';
+  msLabel(id);}
+function msChange(id){var m=MS[id];m.sel=Array.from(document.querySelectorAll("#"+id+" .ms-panel input:checked")).map(function(c){return m.arr[+c.value];});msLabel(id);updateHint();}
+function msAll(id,on){document.querySelectorAll("#"+id+" .ms-panel input").forEach(function(c){c.checked=on;});msChange(id);}
+function msLabel(id){var m=MS[id],t=!m.sel.length||m.sel.length===m.arr.length?m.all:(m.sel.length===1?m.sel[0]:m.sel.length+" mục đã chọn: "+m.sel.join(", "));document.querySelector("#"+id+" .ms-btn span").textContent=t;}
+function toggleMs(id){var el=document.getElementById(id),o=!el.classList.contains("open");document.querySelectorAll(".ms.open").forEach(function(x){x.classList.remove("open");});if(o)el.classList.add("open");}
+document.addEventListener("click",function(e){if(!e.target.closest||!e.target.closest(".ms"))document.querySelectorAll(".ms.open").forEach(function(x){x.classList.remove("open");});});
 function fillSelect(id,first,arr){document.getElementById(id).innerHTML='<option value="">'+esc(first)+'</option>'+arr.map(function(x){var n=BANK.filter(function(q){return q.domain===x||q.topic===x;}).length;return '<option value="'+esc(x)+'">'+esc(x)+' ('+n+')</option>';}).join("");}
 function initSetup(){
   document.getElementById("mTotal").textContent=BANK.length;
   document.getElementById("mStd").textContent=BANK.filter(function(q){return !q.vis;}).length;
   document.getElementById("mVis").textContent=BANK.filter(function(q){return q.vis;}).length;
   document.getElementById("mCase").textContent=Object.keys(CASES).length;
-  fillSelect("sDomain","Tất cả domain",DOMAINS);fillSelect("sCase","Tất cả case study / topic",TOPICS);
-  ["sDomain","sCase","sKind","sWrongOnly","sFrom","sTo","sCount"].forEach(function(id){var el=document.getElementById(id);el.onchange=updateHint;el.oninput=updateHint;});
+  buildMulti("sDomain","Tất cả domain",DOMAINS,function(x){return BANK.filter(function(q){return q.domain===x;}).length;});buildMulti("sCase","Tất cả case study / topic",TOPICS,function(x){return BANK.filter(function(q){return q.topic===x;}).length;});
+  ["sKind","sWrongOnly","sFrom","sTo","sCount"].forEach(function(id){var el=document.getElementById(id);el.onchange=updateHint;el.oninput=updateHint;});
   document.getElementById("sMode").onchange=function(){document.getElementById("sTime").value=this.value==="practice"?0:100;};
   updateHint();renderResumeBox();}
-function getPool(){var d=val("sDomain"),c=val("sCase"),k=val("sKind"),w=document.getElementById("sWrongOnly").checked;
+function getPool(){var d=MS.sDomain.sel,c=MS.sCase.sel,k=val("sKind"),w=document.getElementById("sWrongOnly").checked;
   var from=parseInt(val("sFrom"))||1,to=parseInt(val("sTo"))||BANK.length;
-  return BANK.filter(function(q){return (!d||q.domain===d)&&(!c||q.topic===c)&&(k==="all"||(k==="std"?!q.vis:q.vis))&&(!w||WRONG[q.id])&&q.id>=from&&q.id<=to;});}
+  return BANK.filter(function(q){return (!d.length||d.indexOf(q.domain)>=0)&&(!c.length||c.indexOf(q.topic)>=0)&&(k==="all"||(k==="std"?!q.vis:q.vis))&&(!w||WRONG[q.id])&&q.id>=from&&q.id<=to;});}
 function val(id){return document.getElementById(id).value;}
 function updateHint(){var p=getPool(),s=p.filter(function(q){return !q.vis;}).length;
   document.getElementById("mWrong").textContent=Object.keys(WRONG).length;
